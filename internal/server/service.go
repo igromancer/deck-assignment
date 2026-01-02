@@ -10,6 +10,8 @@ import (
 	"github.com/igromancer/deck-assignment/internal/data"
 )
 
+const ctxAPIKeyID = "api_key_id"
+
 func NewServer() (*Server, error) {
 	cfg := config.GetConfig()
 	jobRepo, err := data.NewJobrepository(*cfg)
@@ -24,7 +26,7 @@ func NewServer() (*Server, error) {
 		router:     gin.Default(),
 		apiKeyRepo: apiKeyRepo,
 		jobRepo:    jobRepo,
-		cfg:        *config.GetConfig(),
+		cfg:        *cfg,
 	}
 
 	return s, nil
@@ -37,7 +39,7 @@ type Server struct {
 	cfg        config.Config
 }
 
-func (s *Server) Listen(addr ...string) {
+func (s *Server) Listen(addr ...string) error {
 	s.router.POST("/apikey", s.createApiKey)
 
 	authorized := s.router.Group("/")
@@ -45,9 +47,8 @@ func (s *Server) Listen(addr ...string) {
 	authorized.POST("/jobs", s.createJob)
 	authorized.GET("/jobs/:id", s.getJobStatus)
 	authorized.GET("/jobs", s.listJobs)
-
-	s.router.GET("/jobs/:id/result", s.getJobResult)
-	s.router.Run(addr...) // Default 0.0.0.0:8080
+	authorized.GET("/jobs/:id/result", s.getJobResult)
+	return s.router.Run(addr...) // Default 0.0.0.0:8080
 }
 
 func (s *Server) createApiKey(c *gin.Context) {
@@ -65,7 +66,7 @@ func (s *Server) createJob(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	apiKeyId, ok := c.Get("api_key_id")
+	apiKeyId, ok := apiKeyIDFromContext(c)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
 		return
@@ -73,7 +74,7 @@ func (s *Server) createJob(c *gin.Context) {
 	job := data.Job{
 		Url:      body.Url,
 		Status:   data.JobStatusPending,
-		ApiKeyID: apiKeyId.(uint),
+		ApiKeyID: apiKeyId,
 	}
 	err = s.jobRepo.Create(c.Request.Context(), &job)
 	if err != nil {
@@ -85,7 +86,7 @@ func (s *Server) createJob(c *gin.Context) {
 }
 
 func (s *Server) listJobs(c *gin.Context) {
-	apiKeyId, ok := c.Get("api_key_id")
+	apiKeyId, ok := apiKeyIDFromContext(c)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
 		return
@@ -102,14 +103,14 @@ func (s *Server) listJobs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit provided"})
 		return
 	}
-	jobs, err := s.jobRepo.List(c.Request.Context(), apiKeyId.(uint), offset, limit)
+	jobs, err := s.jobRepo.List(c.Request.Context(), apiKeyId, offset, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	publicJobs := []data.JobPublic{}
-	for _, j := range jobs {
-		publicJobs = append(publicJobs, data.ToJobPublic(&j))
+	publicJobs := make([]data.JobPublic, len(jobs))
+	for i := range jobs {
+		publicJobs[i] = data.ToJobPublic(&jobs[i])
 	}
 	c.JSON(http.StatusOK, publicJobs)
 }
@@ -121,7 +122,7 @@ func (s *Server) getJobStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
 		return
 	}
-	apiKeyId, ok := c.Get("api_key_id")
+	apiKeyId, ok := apiKeyIDFromContext(c)
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
 		return
@@ -131,7 +132,7 @@ func (s *Server) getJobStatus(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	if apiKeyId.(uint) != job.ApiKeyID {
+	if apiKeyId != job.ApiKeyID {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized to view this job status"})
 		return
 	}
@@ -144,4 +145,13 @@ func (s *Server) getJobResult(c *gin.Context) {
 		"status": "Not implemented",
 		"jobId":  jobId,
 	})
+}
+
+func apiKeyIDFromContext(c *gin.Context) (uint, bool) {
+	v, ok := c.Get(ctxAPIKeyID)
+	if !ok {
+		return 0, false
+	}
+	id, ok := v.(uint)
+	return id, ok
 }

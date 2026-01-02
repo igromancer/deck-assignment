@@ -12,5 +12,8 @@ func main() {
 	if err != nil {
 		panic(fmt.Errorf("%s", "failed to create the server: "+err.Error()))
 	}
-	s.Listen()
+	err = s.Listen()
+	if err != nil {
+		panic(fmt.Errorf("%s", "failed to start the server: "+err.Error()))
+	}
 }

@@ -4,6 +4,13 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	JobStatusPending    string = "pending"
+	JobStatusProcessing string = "processing"
+	JobStatusCompleted  string = "completed"
+	JobStatusFailed     string = "failed"
+)
+
 type ApiKey struct {
 	gorm.Model
 	PublicId     string
@@ -12,7 +19,7 @@ type ApiKey struct {
 
 type Job struct {
 	gorm.Model
-	ApiKeyID       int
+	ApiKeyID       uint
 	ApiKey         ApiKey
 	Url            string
 	Status         string

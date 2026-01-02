@@ -13,8 +13,8 @@ import (
 
 // Data access interface for jobs
 type IJobRepository interface {
-	Get(id uint) (*Job, error)
-	Create(job *Job) (uint, error)
+	Get(ctx context.Context, id uint) (*Job, error)
+	Create(ctx context.Context, job *Job) error
 }
 
 // Data access interface for api keys
@@ -28,12 +28,16 @@ type JobRepository struct {
 	Db *gorm.DB
 }
 
-func (j *JobRepository) Get(id uint) (*Job, error) {
+func (j *JobRepository) Get(ctx context.Context, id uint) (*Job, error) {
 	return &Job{}, nil
 }
 
-func (j *JobRepository) Create(job *Job) (uint, error) {
-	return 1, nil
+func (j *JobRepository) Create(ctx context.Context, job *Job) error {
+	err := gorm.G[Job](j.Db).Create(ctx, job)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func NewJobrepository() (IJobRepository, error) {

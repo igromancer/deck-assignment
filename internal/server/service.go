@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -28,8 +29,36 @@ func createApiKey(c *gin.Context) {
 }
 
 func createJob(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"status": "Not implemented",
+	body, err := ValidateCreateJobRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	apiKeyId, ok := c.Get("api_key_id")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
+		return
+	}
+	job := data.Job{
+		Url:      body.Url,
+		Status:   data.JobStatusPending,
+		ApiKeyID: apiKeyId.(uint),
+	}
+	repo, err := data.NewJobrepository()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	err = repo.Create(c.Request.Context(), &job)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	// TODO: Implement adding job to queue
+	c.JSON(http.StatusAccepted, gin.H{
+		"job_id":     job.ID,
+		"status":     job.Status,
+		"status_url": fmt.Sprintf("/jobs/%v", job.ID),
 	})
 }
 
@@ -51,7 +80,7 @@ func getJobStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
 		return
 	}
-	job, err := repo.Get(uint(uid))
+	job, err := repo.Get(c.Request.Context(), uint(uid))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -77,7 +106,11 @@ func Listen(addr ...string) {
 	router = gin.Default()
 
 	router.POST("/apikey", createApiKey)
-	router.POST("/jobs", createJob)
+
+	authorized := router.Group("/")
+	authorized.Use(AuthRequired())
+
+	authorized.POST("/jobs", createJob)
 	router.GET("/jobs", listJobs)
 	router.GET("/jobs/:id", getJobStatus)
 	router.GET("/jobs/:id/result", getJobResult)

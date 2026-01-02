@@ -2,6 +2,7 @@ CREATE TYPE job_status AS ENUM ('pending', 'processing', 'completed', 'failed');
 
 CREATE TABLE IF NOT EXISTS jobs (
     id SERIAL PRIMARY KEY,
+    api_key_id INTEGER references api_keys(id),
     url VARCHAR(2048) NOT NULL,
     status job_status DEFAULT 'pending',
     result_location VARCHAR(2048) NULL,

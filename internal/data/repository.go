@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/igromancer/deck-assignment/internal/config"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -53,8 +54,8 @@ func (j *JobRepository) List(ctx context.Context, apiKeyId uint, offset int, lim
 	return jobs, nil
 }
 
-func NewJobrepository() (IJobRepository, error) {
-	db, err := GetConnection()
+func NewJobrepository(cfg config.Config) (IJobRepository, error) {
+	db, err := GetConnection(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -100,8 +101,8 @@ func (a *ApiKeyRepository) Get(ctx context.Context, publicId string) (*ApiKey, e
 	return &apiKey, nil
 }
 
-func NewApiKeyrepository() (IApiKeyRepository, error) {
-	db, err := GetConnection()
+func NewApiKeyrepository(cfg config.Config) (IApiKeyRepository, error) {
+	db, err := GetConnection(cfg)
 	if err != nil {
 		return nil, err
 	}

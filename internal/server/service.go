@@ -10,16 +10,48 @@ import (
 	"github.com/igromancer/deck-assignment/internal/data"
 )
 
-var router *gin.Engine
-var cfg *config.Config
-
-func createApiKey(c *gin.Context) {
-	repo, err := data.NewApiKeyrepository()
+func NewServer() (*Server, error) {
+	cfg := config.GetConfig()
+	jobRepo, err := data.NewJobrepository(*cfg)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		return nil, err
 	}
-	apiKey, err := repo.Create(c.Request.Context())
+	apiKeyRepo, err := data.NewApiKeyrepository(*cfg)
+	if err != nil {
+		return nil, err
+	}
+	s := &Server{
+		router:     gin.Default(),
+		apiKeyRepo: apiKeyRepo,
+		jobRepo:    jobRepo,
+		cfg:        *config.GetConfig(),
+	}
+
+	return s, nil
+}
+
+type Server struct {
+	router     *gin.Engine
+	jobRepo    data.IJobRepository
+	apiKeyRepo data.IApiKeyRepository
+	cfg        config.Config
+}
+
+func (s *Server) Listen(addr ...string) {
+	s.router.POST("/apikey", s.createApiKey)
+
+	authorized := s.router.Group("/")
+	authorized.Use(AuthRequired(s.apiKeyRepo))
+	authorized.POST("/jobs", s.createJob)
+	authorized.GET("/jobs/:id", s.getJobStatus)
+	authorized.GET("/jobs", s.listJobs)
+
+	s.router.GET("/jobs/:id/result", s.getJobResult)
+	s.router.Run(addr...) // Default 0.0.0.0:8080
+}
+
+func (s *Server) createApiKey(c *gin.Context) {
+	apiKey, err := s.apiKeyRepo.Create(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -27,7 +59,7 @@ func createApiKey(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"apikey": apiKey})
 }
 
-func createJob(c *gin.Context) {
+func (s *Server) createJob(c *gin.Context) {
 	body, err := ValidateCreateJobRequest(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -43,12 +75,7 @@ func createJob(c *gin.Context) {
 		Status:   data.JobStatusPending,
 		ApiKeyID: apiKeyId.(uint),
 	}
-	repo, err := data.NewJobrepository()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	err = repo.Create(c.Request.Context(), &job)
+	err = s.jobRepo.Create(c.Request.Context(), &job)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -57,7 +84,7 @@ func createJob(c *gin.Context) {
 	c.JSON(http.StatusAccepted, data.ToJobPublic(&job))
 }
 
-func listJobs(c *gin.Context) {
+func (s *Server) listJobs(c *gin.Context) {
 	apiKeyId, ok := c.Get("api_key_id")
 	if !ok {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
@@ -75,12 +102,7 @@ func listJobs(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit provided"})
 		return
 	}
-	repo, err := data.NewJobrepository()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	jobs, err := repo.List(c.Request.Context(), apiKeyId.(uint), offset, limit)
+	jobs, err := s.jobRepo.List(c.Request.Context(), apiKeyId.(uint), offset, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -92,13 +114,8 @@ func listJobs(c *gin.Context) {
 	c.JSON(http.StatusOK, publicJobs)
 }
 
-func getJobStatus(c *gin.Context) {
+func (s *Server) getJobStatus(c *gin.Context) {
 	jobId := c.Param("id")
-	repo, err := data.NewJobrepository()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	uid, err := strconv.ParseUint(jobId, 10, 0)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
@@ -109,7 +126,7 @@ func getJobStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
 		return
 	}
-	job, err := repo.Get(c.Request.Context(), uint(uid))
+	job, err := s.jobRepo.Get(c.Request.Context(), uint(uid))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
@@ -121,27 +138,10 @@ func getJobStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, data.ToJobPublic(job))
 }
 
-func getJobResult(c *gin.Context) {
+func (s *Server) getJobResult(c *gin.Context) {
 	jobId := c.Param("id")
 	c.JSON(http.StatusNotImplemented, gin.H{
 		"status": "Not implemented",
 		"jobId":  jobId,
 	})
-}
-
-func Listen(addr ...string) {
-	cfg = config.GetConfig()
-	router = gin.Default()
-
-	router.POST("/apikey", createApiKey)
-
-	authorized := router.Group("/")
-	authorized.Use(AuthRequired())
-
-	authorized.POST("/jobs", createJob)
-	authorized.GET("/jobs/:id", getJobStatus)
-	authorized.GET("/jobs", listJobs)
-
-	router.GET("/jobs/:id/result", getJobResult)
-	router.Run(addr...) // Default 0.0.0.0:8080
 }

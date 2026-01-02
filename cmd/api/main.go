@@ -8,5 +8,9 @@ import (
 
 func main() {
 	fmt.Println("running API")
-	server.Listen()
+	s, err := server.NewServer()
+	if err != nil {
+		panic(fmt.Errorf("%s", "failed to create the server: "+err.Error()))
+	}
+	s.Listen()
 }

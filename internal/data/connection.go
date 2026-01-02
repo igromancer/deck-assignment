@@ -8,8 +8,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetConnection() (*gorm.DB, error) {
-	cfg := config.GetConfig()
+func GetConnection(cfg config.Config) (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%v",
 		cfg.DBHost,

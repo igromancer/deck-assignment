@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func AuthRequired() gin.HandlerFunc {
+func AuthRequired(apiKeyRepo data.IApiKeyRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		apiKeyHeader := c.Request.Header.Get("x-api-key")
 		if apiKeyHeader == "" {
@@ -22,11 +22,6 @@ func AuthRequired() gin.HandlerFunc {
 			return
 		}
 		publicId, secret := s[0], s[1]
-		apiKeyRepo, err := data.NewApiKeyrepository()
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-			return
-		}
 		dbKey, err := apiKeyRepo.Get(c.Request.Context(), publicId)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

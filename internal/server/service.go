@@ -58,9 +58,38 @@ func createJob(c *gin.Context) {
 }
 
 func listJobs(c *gin.Context) {
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"status": "Not implemented",
-	})
+	apiKeyId, ok := c.Get("api_key_id")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
+		return
+	}
+	offsetStr := c.DefaultQuery("offset", "0")
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid offset provided"})
+		return
+	}
+	limitStr := c.DefaultQuery("limit", "25")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid limit provided"})
+		return
+	}
+	repo, err := data.NewJobrepository()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	jobs, err := repo.List(c.Request.Context(), apiKeyId.(uint), offset, limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	publicJobs := []data.JobPublic{}
+	for _, j := range jobs {
+		publicJobs = append(publicJobs, data.ToJobPublic(&j))
+	}
+	c.JSON(http.StatusOK, publicJobs)
 }
 
 func getJobStatus(c *gin.Context) {
@@ -111,8 +140,8 @@ func Listen(addr ...string) {
 
 	authorized.POST("/jobs", createJob)
 	authorized.GET("/jobs/:id", getJobStatus)
+	authorized.GET("/jobs", listJobs)
 
-	router.GET("/jobs", listJobs)
 	router.GET("/jobs/:id/result", getJobResult)
 	router.Run(addr...) // Default 0.0.0.0:8080
 }

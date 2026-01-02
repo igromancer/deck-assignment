@@ -15,6 +15,7 @@ import (
 type IJobRepository interface {
 	Get(ctx context.Context, id uint) (*Job, error)
 	Create(ctx context.Context, job *Job) error
+	List(ctx context.Context, apiKeyId uint, offset int, limit int) ([]Job, error)
 }
 
 // Data access interface for api keys
@@ -42,6 +43,14 @@ func (j *JobRepository) Create(ctx context.Context, job *Job) error {
 		return err
 	}
 	return nil
+}
+
+func (j *JobRepository) List(ctx context.Context, apiKeyId uint, offset int, limit int) ([]Job, error) {
+	jobs, err := gorm.G[Job](j.Db).Where("api_key_id = ?", apiKeyId).Offset(offset).Limit(limit).Find(ctx)
+	if err != nil {
+		return []Job{}, err
+	}
+	return jobs, nil
 }
 
 func NewJobrepository() (IJobRepository, error) {

@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -55,11 +54,7 @@ func createJob(c *gin.Context) {
 		return
 	}
 	// TODO: Implement adding job to queue
-	c.JSON(http.StatusAccepted, gin.H{
-		"job_id":     job.ID,
-		"status":     job.Status,
-		"status_url": fmt.Sprintf("/jobs/%v", job.ID),
-	})
+	c.JSON(http.StatusAccepted, data.ToJobPublic(&job))
 }
 
 func listJobs(c *gin.Context) {
@@ -80,17 +75,21 @@ func getJobStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
 		return
 	}
+	apiKeyId, ok := c.Get("api_key_id")
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
+		return
+	}
 	job, err := repo.Get(c.Request.Context(), uint(uid))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return
 	}
-	if job == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+	if apiKeyId.(uint) != job.ApiKeyID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized to view this job status"})
 		return
 	}
-
-	c.JSON(http.StatusOK, job)
+	c.JSON(http.StatusOK, data.ToJobPublic(job))
 }
 
 func getJobResult(c *gin.Context) {
@@ -111,8 +110,9 @@ func Listen(addr ...string) {
 	authorized.Use(AuthRequired())
 
 	authorized.POST("/jobs", createJob)
+	authorized.GET("/jobs/:id", getJobStatus)
+
 	router.GET("/jobs", listJobs)
-	router.GET("/jobs/:id", getJobStatus)
 	router.GET("/jobs/:id/result", getJobResult)
 	router.Run(addr...) // Default 0.0.0.0:8080
 }

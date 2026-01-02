@@ -29,7 +29,11 @@ type JobRepository struct {
 }
 
 func (j *JobRepository) Get(ctx context.Context, id uint) (*Job, error) {
-	return &Job{}, nil
+	job, err := gorm.G[Job](j.Db).Where("id = ?", id).First(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &job, nil
 }
 
 func (j *JobRepository) Create(ctx context.Context, job *Job) error {

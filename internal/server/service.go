@@ -141,10 +141,27 @@ func (s *Server) getJobStatus(c *gin.Context) {
 
 func (s *Server) getJobResult(c *gin.Context) {
 	jobId := c.Param("id")
-	c.JSON(http.StatusNotImplemented, gin.H{
-		"status": "Not implemented",
-		"jobId":  jobId,
-	})
+	uid, err := strconv.ParseUint(jobId, 10, 0)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid job id"})
+		return
+	}
+	apiKeyId, ok := apiKeyIDFromContext(c)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "api key was not set"})
+		return
+	}
+	job, err := s.jobRepo.Get(c.Request.Context(), uint(uid))
+	if err != nil || (job != nil && job.Status != data.JobStatusCompleted) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "job not found"})
+		return
+	}
+	if apiKeyId != job.ApiKeyID {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized to view this job status"})
+		return
+	}
+	// TODO: get actual job result
+	c.JSON(http.StatusOK, data.ToJobResultPublic(job, map[string]any{}))
 }
 
 func apiKeyIDFromContext(c *gin.Context) (uint, bool) {

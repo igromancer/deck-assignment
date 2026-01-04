@@ -13,21 +13,26 @@ type IJobProcessor interface {
 	ProcessJob(ctx context.Context, msg data.JobPublic) error
 }
 
+type IJobResultStore interface {
+	WriteJobResult(jobID uint) error
+}
+
 type ScrapeJobProcessor struct {
-	Cfg     *config.Config
-	JobRepo data.IJobRepository
+	Cfg         *config.Config
+	JobRepo     data.IJobRepository
+	ResultStore IJobResultStore
+	Sleep       func(time.Duration)
 }
 
 func (sjp *ScrapeJobProcessor) ProcessJob(ctx context.Context, msg data.JobPublic) error {
 	sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusProcessing)
-	time.Sleep(time.Second * 6)
+	sjp.Sleep(time.Second * 6)
 	_, err := url.ParseRequestURI(msg.Url)
 	if err != nil {
 		sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusFailed)
 		return err
 	}
-	store := NewJobResultStore(sjp.Cfg)
-	err = store.WriteJobResult(msg.Id)
+	err = sjp.ResultStore.WriteJobResult(msg.Id)
 	if err != nil {
 		sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusFailed)
 		return err
@@ -42,8 +47,10 @@ func NewScrapeJobProcessor(cfg config.Config) (IJobProcessor, error) {
 		return nil, err
 	}
 	sjp := ScrapeJobProcessor{
-		Cfg:     &cfg,
-		JobRepo: repo,
+		Cfg:         &cfg,
+		JobRepo:     repo,
+		ResultStore: NewJobResultStore(&cfg),
+		Sleep:       time.Sleep,
 	}
 	return &sjp, nil
 }

@@ -1,0 +1,56 @@
+# =========================
+# Go build artifacts
+# =========================
+bin/
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# =========================
+# Go workspace / modules
+# =========================
+go.work
+go.work.sum
+
+# Vendor (ignore unless you intentionally commit it)
+vendor/
+
+# =========================
+# IDE / editor files
+# =========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# =========================
+# Environment / secrets
+# =========================
+.env
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+
+# =========================
+# Coverage / profiling
+# =========================
+coverage.out
+coverage/
+*.pprof
+
+# =========================
+# Local storage / runtime data
+# =========================
+storage/
+tmp/

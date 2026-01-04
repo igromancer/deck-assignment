@@ -19,6 +19,7 @@ type Config struct {
 	RabbitMQHost     string `env:"RABBITMQ_HOST"`
 	RabbitMQPort     string `env:"RABBITMQ_PORT"`
 	JobQueueName     string `env:"JOB_QUEUE_NAME"`
+	JobResultPath    string `env:"JOB_RESULT_PATH"`
 }
 
 func GetConfig() *Config {

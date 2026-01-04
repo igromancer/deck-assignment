@@ -17,6 +17,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       JOB_QUEUE_NAME: scrapeJobs
+      JOB_RESULT_PATH: /storage
     depends_on:
       db:
         condition: service_healthy
@@ -42,6 +43,7 @@ services:
       RABBITMQ_HOST: rabbitmq
       RABBITMQ_PORT: 5672
       JOB_QUEUE_NAME: scrapeJobs
+      JOB_RESULT_PATH: /storage
     depends_on:
       db:
         condition: service_healthy

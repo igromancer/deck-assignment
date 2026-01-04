@@ -53,14 +53,14 @@ func ToJobPublic(j *Job) JobPublic {
 }
 
 type JobResultPublic struct {
-	Id          uint           `json:"job_id"`
-	Status      string         `json:"status"`
-	CreatedAt   time.Time      `json:"created_at"`
-	ExtractedAt time.Time      `json:"extracted_at"`
-	Data        map[string]any `json:"data"`
+	Id          uint      `json:"job_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	ExtractedAt time.Time `json:"extracted_at"`
+	Data        string    `json:"data"`
 }
 
-func ToJobResultPublic(j *Job, data map[string]any) JobResultPublic {
+func ToJobResultPublic(j *Job, data string) JobResultPublic {
 	jr := JobResultPublic{
 		Id:        j.ID,
 		Status:    j.Status,

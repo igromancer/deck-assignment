@@ -8,6 +8,7 @@ import (
 
 	"github.com/igromancer/deck-assignment/internal/config"
 	"github.com/igromancer/deck-assignment/internal/data"
+	"github.com/igromancer/deck-assignment/internal/jobs"
 	"github.com/igromancer/deck-assignment/internal/queue"
 )
 
@@ -28,22 +29,24 @@ func NewServer() (*Server, error) {
 		return nil, err
 	}
 	s := &Server{
-		router:        gin.Default(),
-		apiKeyRepo:    apiKeyRepo,
-		jobRepo:       jobRepo,
-		cfg:           *cfg,
-		messageSender: sender,
+		router:         gin.Default(),
+		apiKeyRepo:     apiKeyRepo,
+		jobRepo:        jobRepo,
+		cfg:            *cfg,
+		messageSender:  sender,
+		jobResultStore: *jobs.NewJobResultStore(cfg),
 	}
 
 	return s, nil
 }
 
 type Server struct {
-	router        *gin.Engine
-	jobRepo       data.IJobRepository
-	apiKeyRepo    data.IApiKeyRepository
-	messageSender queue.ISender
-	cfg           config.Config
+	router         *gin.Engine
+	jobRepo        data.IJobRepository
+	apiKeyRepo     data.IApiKeyRepository
+	messageSender  queue.ISender
+	jobResultStore jobs.JobResultStore
+	cfg            config.Config
 }
 
 func (s *Server) Listen(addr ...string) error {
@@ -172,8 +175,12 @@ func (s *Server) getJobResult(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized to view this job status"})
 		return
 	}
-	// TODO: get actual job result
-	c.JSON(http.StatusOK, data.ToJobResultPublic(job, map[string]any{}))
+	jobResult, err := s.jobResultStore.ReadJobResult(job.ID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, data.ToJobResultPublic(job, jobResult))
 }
 
 func apiKeyIDFromContext(c *gin.Context) (uint, bool) {

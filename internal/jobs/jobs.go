@@ -2,7 +2,6 @@ package jobs
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"time"
 
@@ -15,13 +14,11 @@ type IJobProcessor interface {
 }
 
 type ScrapeJobProcessor struct {
+	Cfg     *config.Config
 	JobRepo data.IJobRepository
 }
 
 func (sjp *ScrapeJobProcessor) ProcessJob(ctx context.Context, msg data.JobPublic) error {
-	fmt.Println("================ Processing a job ===================")
-	fmt.Println(msg)
-
 	sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusProcessing)
 	time.Sleep(time.Second * 6)
 	_, err := url.ParseRequestURI(msg.Url)
@@ -29,7 +26,12 @@ func (sjp *ScrapeJobProcessor) ProcessJob(ctx context.Context, msg data.JobPubli
 		sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusFailed)
 		return err
 	}
-	// Write dummy string as job result
+	store := NewJobResultStore(sjp.Cfg)
+	err = store.WriteJobResult(msg.Id)
+	if err != nil {
+		sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusFailed)
+		return err
+	}
 	sjp.JobRepo.SetJobStatus(ctx, msg.Id, data.JobStatusCompleted)
 	return nil
 }
@@ -40,6 +42,7 @@ func NewScrapeJobProcessor(cfg config.Config) (IJobProcessor, error) {
 		return nil, err
 	}
 	sjp := ScrapeJobProcessor{
+		Cfg:     &cfg,
 		JobRepo: repo,
 	}
 	return &sjp, nil

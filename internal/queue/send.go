@@ -3,7 +3,6 @@ package queue
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/igromancer/deck-assignment/internal/config"
 	"github.com/igromancer/deck-assignment/internal/data"
@@ -12,58 +11,11 @@ import (
 
 type ISender interface {
 	Publish(ctx context.Context, msg data.JobPublic) error
-	Connect() error
-	Disconnect()
 }
 
 type RabbitMQSender struct {
-	Cfg  *config.Config
-	Conn *amqp.Connection
-	Ch   *amqp.Channel
-}
-
-func (rs *RabbitMQSender) Connect() error {
-	connUrl := fmt.Sprintf(
-		"amqp://%s:%s@%s:%s/",
-		rs.Cfg.RabbitMQUser,
-		rs.Cfg.RabbitMQPassword,
-		rs.Cfg.RabbitMQHost,
-		rs.Cfg.RabbitMQPort,
-	)
-	conn, err := amqp.Dial(connUrl)
-	if err != nil {
-		return err
-	}
-	rs.Conn = conn
-	ch, err := conn.Channel()
-	if err != nil {
-		return err
-	}
-	rs.Ch = ch
-	_, err = ch.QueueDeclare(
-		rs.Cfg.JobQueueName,
-		true,  // durable so messages survive broker restart
-		false, // auto-delete
-		false, // exclusive
-		false, // no-wait
-		nil,
-	)
-	if err != nil {
-		rs.Disconnect()
-		return err
-	}
-	return nil
-}
-
-func (rs *RabbitMQSender) Disconnect() {
-	if rs.Ch != nil {
-		_ = rs.Ch.Close()
-		rs.Ch = nil
-	}
-	if rs.Conn != nil {
-		_ = rs.Conn.Close()
-		rs.Conn = nil
-	}
+	Cfg             *config.Config
+	QueueConnection *RabbitMQConnection
 }
 
 func (rs *RabbitMQSender) Publish(ctx context.Context, msg data.JobPublic) error {
@@ -72,7 +24,7 @@ func (rs *RabbitMQSender) Publish(ctx context.Context, msg data.JobPublic) error
 		return err
 	}
 
-	return rs.Ch.PublishWithContext(
+	return rs.QueueConnection.Ch.PublishWithContext(
 		ctx,
 		"",
 		rs.Cfg.JobQueueName,
@@ -87,10 +39,14 @@ func (rs *RabbitMQSender) Publish(ctx context.Context, msg data.JobPublic) error
 }
 
 func NewSender(cfg *config.Config) (ISender, error) {
-	s := RabbitMQSender{
+	connection := RabbitMQConnection{
 		Cfg: cfg,
 	}
-	err := s.Connect()
+	err := connection.Connect()
+	s := RabbitMQSender{
+		Cfg:             cfg,
+		QueueConnection: &connection,
+	}
 	if err != nil {
 		return nil, err
 	}

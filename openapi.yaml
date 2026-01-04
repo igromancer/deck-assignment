@@ -1,0 +1,302 @@
+openapi: 3.0.3
+info:
+  title: Deck Assignment API
+  version: 1.0.0
+  description: |
+    API for creating API keys, submitting jobs, checking job status, listing jobs, and fetching job results.
+
+servers:
+  - url: http://localhost:8080
+
+tags:
+  - name: auth
+    description: API key management
+  - name: jobs
+    description: Job submission and retrieval
+
+paths:
+  /apikey:
+    post:
+      tags: [auth]
+      summary: Create an API key
+      operationId: createApiKey
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateApiKeyResponse"
+              examples:
+                example:
+                  value:
+                    apikey: "abc123secretkey"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /jobs:
+    post:
+      tags: [jobs]
+      summary: Create a job
+      operationId: createJob
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateJobRequest"
+            examples:
+              example:
+                value:
+                  url: "https://example.com"
+      responses:
+        "202":
+          description: Job accepted (queued for processing)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobPublic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      tags: [jobs]
+      summary: List jobs
+      operationId: listJobs
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          description: Offset for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          description: Page size for pagination
+          schema:
+            type: integer
+            minimum: 1
+            default: 25
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobPublic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /jobs/{id}:
+    get:
+      tags: [jobs]
+      summary: Get job status
+      operationId: getJobStatus
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobPublic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /jobs/{id}/result:
+    get:
+      tags: [jobs]
+      summary: Get completed job result
+      operationId: getJobResult
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Job ID
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Job result (only when job is completed)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobResultPublic"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Job not found or not completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              examples:
+                example:
+                  value:
+                    error: "job not found"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            example:
+              value:
+                error: "invalid request"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            example:
+              value:
+                error: "unauthorized"
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            example:
+              value:
+                error: "not found"
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          examples:
+            example:
+              value:
+                error: "internal error"
+
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    CreateApiKeyResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        apikey:
+          type: string
+          description: Newly created API key
+      required: [apikey]
+
+    CreateJobRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        url:
+          type: string
+          description: Target URL for the job
+          maxLength: 2048
+          example: "https://example.com"
+      required: [url]
+
+    JobStatus:
+      type: string
+      description: Job status
+      enum: [pending, processing, completed, failed]
+
+    JobPublic:
+      type: object
+      description: Public representation of a job
+      additionalProperties: false
+      properties:
+        job_id:
+          type: integer
+          format: uint32
+          example: 123
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        url:
+          type: string
+          maxLength: 2048
+          example: "https://example.com"
+        created_at:
+          type: string
+          format: date-time
+          example: "2026-01-03T22:10:00Z"
+        completed_at:
+          type: string
+          format: date-time
+          description: Present when status is completed; otherwise may be zero/empty depending on server serialization.
+          example: "2026-01-03T22:12:30Z"
+        status_url:
+          type: string
+          description: Relative URL to fetch the job status.
+          example: "/jobs/123"
+      required: [job_id, status, url, created_at, status_url]
+
+
+    JobResultPublic:
+      type: object
+      description: Public representation of a completed job + its result
+      additionalProperties: false
+      properties:
+        job:
+          $ref: "#/components/schemas/JobPublic"
+        result:
+          type: object
+          description: Arbitrary JSON result produced by the worker
+          additionalProperties: true
+      required: [job, result]

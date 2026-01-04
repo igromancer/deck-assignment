@@ -26,6 +26,31 @@ services:
         condition: service_completed_successfully
     volumes:
       - ./storage:/storage
+  worker:
+    build:
+      context: .
+      target: worker
+    environment:
+      PORT: 8080
+      DB_USER: user
+      DB_PASSWORD: password
+      DB_NAME: deck
+      DB_PORT: 5432
+      DB_HOST: db
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      JOB_QUEUE_NAME: scrapeJobs
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./storage:/storage
   db:
     image: postgres:18-alpine
     environment:

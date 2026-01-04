@@ -1,1 +1,0 @@
-docker run --name api -p 8080:8080 deck-api:local

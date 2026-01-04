@@ -17,6 +17,7 @@ type IJobRepository interface {
 	Get(ctx context.Context, id uint) (*Job, error)
 	Create(ctx context.Context, job *Job) error
 	List(ctx context.Context, apiKeyId uint, offset int, limit int) ([]Job, error)
+	SetJobStatus(ctx context.Context, id uint, status string) error
 }
 
 // Data access interface for api keys
@@ -52,6 +53,11 @@ func (j *JobRepository) List(ctx context.Context, apiKeyId uint, offset int, lim
 		return []Job{}, err
 	}
 	return jobs, nil
+}
+
+func (j *JobRepository) SetJobStatus(ctx context.Context, id uint, status string) error {
+	_, err := gorm.G[Job](j.Db).Where("id = ?", id).Update(ctx, "status", status)
+	return err
 }
 
 func NewJobrepository(cfg config.Config) (IJobRepository, error) {

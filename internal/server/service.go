@@ -8,6 +8,7 @@ import (
 
 	"github.com/igromancer/deck-assignment/internal/config"
 	"github.com/igromancer/deck-assignment/internal/data"
+	"github.com/igromancer/deck-assignment/internal/queue"
 )
 
 const ctxAPIKeyID = "api_key_id"
@@ -22,21 +23,27 @@ func NewServer() (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	sender, err := queue.NewSender(cfg)
+	if err != nil {
+		return nil, err
+	}
 	s := &Server{
-		router:     gin.Default(),
-		apiKeyRepo: apiKeyRepo,
-		jobRepo:    jobRepo,
-		cfg:        *cfg,
+		router:        gin.Default(),
+		apiKeyRepo:    apiKeyRepo,
+		jobRepo:       jobRepo,
+		cfg:           *cfg,
+		messageSender: sender,
 	}
 
 	return s, nil
 }
 
 type Server struct {
-	router     *gin.Engine
-	jobRepo    data.IJobRepository
-	apiKeyRepo data.IApiKeyRepository
-	cfg        config.Config
+	router        *gin.Engine
+	jobRepo       data.IJobRepository
+	apiKeyRepo    data.IApiKeyRepository
+	messageSender queue.ISender
+	cfg           config.Config
 }
 
 func (s *Server) Listen(addr ...string) error {
@@ -81,8 +88,13 @@ func (s *Server) createJob(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	// TODO: Implement adding job to queue
-	c.JSON(http.StatusAccepted, data.ToJobPublic(&job))
+	pJob := data.ToJobPublic(&job)
+	err = s.messageSender.Publish(c.Request.Context(), pJob)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusAccepted, pJob)
 }
 
 func (s *Server) listJobs(c *gin.Context) {

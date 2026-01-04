@@ -12,9 +12,20 @@ services:
       DB_NAME: deck
       DB_PORT: 5432
       DB_HOST: db
+      RABBITMQ_USER: user
+      RABBITMQ_PASSWORD: password
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      JOB_QUEUE_NAME: scrapeJobs
     depends_on:
-      - db
-      - migrate
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    volumes:
+      - ./storage:/storage
   db:
     image: postgres:18-alpine
     environment:
@@ -50,3 +61,16 @@ services:
     image: adminer
     ports:
       - 9090:8080
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports:
+      - 5672:5672 # AMQP
+      - 15672:15672 # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
